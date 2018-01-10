@@ -100,7 +100,7 @@ n_batch = 10
 n_epoch = 30
 
 n_samples = 20
-n_numbers = 5
+n_numbers = 2
 largest = 30
 
 alphabet = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '+', ' ']
@@ -115,20 +115,22 @@ n_neurons_2 = 50
 data = tf.placeholder("float", [None, n_in_seq_length, n_chars])
 target = tf.placeholder(tf.int64, [None, n_out_seq_length, n_chars])
 
-encoder_cell = tf.contrib.rnn.BasicLSTMCell(num_units=n_neurons_1)
-outputs1, states1 = tf.nn.dynamic_rnn(encoder_cell, data, dtype=tf.float32)
-top_hidden_state = states1[1]
+with tf.variable_scope('lstm1'):
+    encoder_cell = tf.contrib.rnn.BasicLSTMCell(num_units=n_neurons_1)
+    outputs1, states1 = tf.nn.dynamic_rnn(encoder_cell, data, dtype=tf.float32)
+    top_hidden_state = states1[1]
 
 # Create multiple copies of encoded output
 encoded_output = tf.tile(tf.expand_dims(top_hidden_state, axis=-2), 
                          [1, n_out_seq_length, 1])
 
 # Wrap each encoded output with Dense layer
-decoder_cell = tf.contrib.rnn.OutputProjectionWrapper(
-    tf.contrib.rnn.BasicLSTMCell(num_units=n_neurons_2),
-    output_size=n_chars)
-decoded_output, decoded_states = tf.nn.dynamic_rnn(
-    decoder_cell, encoded_output, dtype=tf.float32)
+with tf.variable_scope('lstm2'):
+    decoder_cell = tf.contrib.rnn.OutputProjectionWrapper(
+        tf.contrib.rnn.BasicLSTMCell(num_units=n_neurons_2),
+        output_size=n_chars)
+    decoded_output, decoded_states = tf.nn.dynamic_rnn(
+        decoder_cell, encoded_output, dtype=tf.float32)
 
 learning_rate = 0.01
 
@@ -160,7 +162,8 @@ with tf.Session() as sess:
         output = sess.run(decoded_output, feed_dict={data: batch_x, target: batch_y})        
         logits, _ = one_hot_encode(np.argmax(output, axis=2), None, len(alphabet))
         
-        dirpath = './model3'
+        # make sure "model" folder is present
+        dirpath = './model'
         ckpt = tf.train.get_checkpoint_state(dirpath)
         if (ckpt is None):
             saver.save(sess, dirpath + '/model.ckpt', global_step=epoch)
