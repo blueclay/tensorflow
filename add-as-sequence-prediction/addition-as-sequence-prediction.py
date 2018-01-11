@@ -3,6 +3,7 @@ import math
 import tensorflow as tf
 import numpy as np
 
+# generate examples of random integers and their sum
 def random_sum_pairs(n_examples, n_numbers, largest):
     X, y = list(), list()
     for i in range(n_examples):
@@ -12,6 +13,7 @@ def random_sum_pairs(n_examples, n_numbers, largest):
         y.append(out_pattern)
     return X, y
 
+# convert data to strings
 def to_string(X, y, n_numbers, largest):
     # input
     max_length = n_numbers * math.ceil(math.log10(largest+1)) + n_numbers - 1
@@ -32,6 +34,7 @@ def to_string(X, y, n_numbers, largest):
         
     return Xstr, ystr
 
+# integer encode strings
 def integer_encode(X, y, alphabet):
     char_to_int = dict((c, i) for i, c in enumerate(alphabet))
     Xenc = list()
@@ -73,6 +76,7 @@ def one_hot_encode(X, y, max_int):
     
     return Xenc, yenc
 
+# generate an encoded dataset
 def generate_data(n_samples, n_numbers, largest, alphabet):
     # generate pairs
     X, y = random_sum_pairs(n_samples, n_numbers, largest)
@@ -94,15 +98,19 @@ def invert(seq, alphabet):
         strings.append(string)
     return ''.join(strings)
 
+
 # Model Architecture
 
+# Training parameters
 n_batch = 10
 n_epoch = 30
 
+# Data parameters
 n_samples = 20
 n_numbers = 2
 largest = 30
 
+# Architecture parameters
 alphabet = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '+', ' ']
 n_chars = len(alphabet)
 n_in_seq_length = n_numbers * math.ceil(math.log10(largest+1)) + n_numbers - 1
@@ -115,23 +123,31 @@ n_neurons_2 = 50
 data = tf.placeholder("float", [None, n_in_seq_length, n_chars])
 target = tf.placeholder(tf.int64, [None, n_out_seq_length, n_chars])
 
-with tf.variable_scope('lstm1'):
+
+# Create LSTM; Use different scope for encoder and decoder.
+with tf.variable_scope('encoder'):
     encoder_cell = tf.contrib.rnn.BasicLSTMCell(num_units=n_neurons_1)
     outputs1, states1 = tf.nn.dynamic_rnn(encoder_cell, data, dtype=tf.float32)
     top_hidden_state = states1[1]
 
-# Create multiple copies of encoded output
+# Make copies of encoded output. One for each output number placement. 
+# ie. 12 has 2 digit position so create 2 copies of the encoded output.
+# The value is calculated and stored in the "n_out_seq_length".
+# Should function like the "RepeatVector" layer in Keras
 encoded_output = tf.tile(tf.expand_dims(top_hidden_state, axis=-2), 
                          [1, n_out_seq_length, 1])
 
-# Wrap each encoded output with Dense layer
-with tf.variable_scope('lstm2'):
+# Wrap each copy of the encoded output with Dense layer.
+# Should function like the "TimeDistributed(Dense(...))" in Keras
+with tf.variable_scope('decoder'):
     decoder_cell = tf.contrib.rnn.OutputProjectionWrapper(
         tf.contrib.rnn.BasicLSTMCell(num_units=n_neurons_2),
         output_size=n_chars)
     decoded_output, decoded_states = tf.nn.dynamic_rnn(
         decoder_cell, encoded_output, dtype=tf.float32)
 
+    
+#Cost Function
 learning_rate = 0.01
 
 loss_op = tf.reduce_sum(tf.nn.softmax_cross_entropy_with_logits(
@@ -142,6 +158,8 @@ loss_op = tf.reduce_sum(tf.nn.softmax_cross_entropy_with_logits(
 optimizer = tf.train.AdamOptimizer(learning_rate)
 train_op = optimizer.minimize(loss_op)
 
+
+# Training
 init = tf.global_variables_initializer()
 saver = tf.train.Saver()
 
